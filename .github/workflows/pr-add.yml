@@ -1,0 +1,91 @@
+name: Add item to project when opening PR
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'GitHub Project ID (optional, overrides config.json)'
+        required: false
+        type: string
+      domain:
+        description: 'Domain value (optional, overrides config.json)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+  PROJECT_ID: ${{ inputs.project_id }}
+  DOMAIN: ${{ inputs.domain }}
+
+jobs:
+  add-to-project:
+    runs-on: aks-runner
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: segec_workflows/node_modules
+          key: ${{ runner.os }}-node-20-${{ hashFiles('segec_workflows/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-20-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: segec_workflows
+
+      # Use the new shared config script
+      - name: Read config
+        id: config
+        run: node segec_workflows/.github/scripts/read-config.js
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          DOMAIN: ${{ inputs.domain }}
+
+      - name: Add PR to project
+        id: add_to_project
+        run: node segec_workflows/.github/scripts/add-to-project.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          CONTENT_ID: ${{ github.event.pull_request.node_id }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+
+      - name: Update Domain field in project
+        run: node segec_workflows/.github/scripts/add-domain.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.add_to_project.outputs.itemId }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          DOMAIN: ${{ steps.config.outputs.domain }}
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Set assignee as PR author
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --add-assignee "${{ github.event.pull_request.user.login }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}

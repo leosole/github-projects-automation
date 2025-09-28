@@ -1,0 +1,159 @@
+name: Move Task to Completed when PR is Closed
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'GitHub Project ID (optional, overrides config.json)'
+        required: false
+        type: string
+      issue_branch_regex:
+        description: 'Regex pattern to extract issue numbers from branch names'
+        required: false
+        type: string
+      field_name:
+        description: 'Project field name to update'
+        required: false
+        type: string
+      option_name:
+        description: 'Status option to set'
+        required: false
+        type: string
+      end_date_field:
+        description: 'End date field name'
+        required: false
+        type: string
+        default: 'End'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  ISSUE_BRANCH_REGEX: ${{ inputs.issue_branch_regex || '^(\d+)[-_]' }}
+  FIELD_NAME: ${{ inputs.field_name || 'Status' }}
+  OPTION_NAME: ${{ inputs.option_name || 'Done' }}
+  END_DATE_FIELD: ${{ inputs.end_date_field || 'End' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+  PROJECT_ID: ${{ inputs.project_id }}
+
+jobs:
+  process-pr-closure:
+    runs-on: aks-runner
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: segec_workflows/node_modules
+          key: ${{ runner.os }}-node-20-${{ hashFiles('segec_workflows/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-20-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: segec_workflows
+
+      # Use the new shared config script
+      - name: Read config
+        id: config
+        run: node segec_workflows/.github/scripts/read-config.js
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+      
+      - name: Find task from branch
+        id: linked_issue
+        if: github.event.pull_request.merged == true && github.head_ref != 'staging' && github.head_ref != 'develop'
+        run: node segec_workflows/.github/scripts/find-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          REGEX: ${{ env.ISSUE_BRANCH_REGEX }}
+          TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+
+      - name: Get project field IDs (Status and Completed)
+        id: get_ids
+        if: github.event.pull_request.merged == true && github.head_ref != 'staging' && github.head_ref != 'develop' && steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/find-fields.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          FIELD_NAME: ${{ env.FIELD_NAME }}
+          OPTION_NAME: ${{ env.OPTION_NAME }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+
+      - name: Move task to Completed
+        if: github.event.pull_request.merged == true && github.head_ref != 'staging' && github.head_ref != 'develop' && steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/move-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.linked_issue.outputs.issue_number }}
+          ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
+          FIELD_ID: ${{ steps.get_ids.outputs.fieldId }}
+          OPTION_ID: ${{ steps.get_ids.outputs.optionId }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          
+      - name: Set current date in End field
+        if: github.event.pull_request.merged == true && github.head_ref != 'staging' && github.head_ref != 'develop' && steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/set-date.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          FIELD_NAME: ${{ env.END_DATE_FIELD }}
+
+      - name: Delete branch after merge
+        if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main' && github.event.pull_request.head.ref != 'master' && github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'staging'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            try {
+              // First check if the branch still exists
+              await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`
+              });
+              
+              // If we get here, the branch exists, so delete it
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`
+              });
+              core.info(`Branch ${branch} deleted successfully.`);
+            } catch (error) {
+              if (error.status === 404 || error.status === 422) {
+                core.info(`Branch ${branch} not found or already deleted.`);
+              } else {
+                core.warning(`Error deleting branch ${branch}: ${error.message}`);
+                throw error;
+              }
+            }
+
+      - name: Remove PR from project
+        run: node segec_workflows/.github/scripts/remove-pr-from-project.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}

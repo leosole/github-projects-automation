@@ -1,0 +1,45 @@
+name: 'Setup SEGEC Environment'
+description: 'Checkout repositories, setup Node.js, and install dependencies for SEGEC workflows'
+
+inputs:
+  token:
+    description: 'GitHub token for repository access'
+    required: true
+  node-version:
+    description: 'Node.js version to setup'
+    required: false
+    default: '20'
+  cache-key-suffix:
+    description: 'Additional suffix for cache key to ensure cache isolation'
+    required: false
+    default: ''
+
+outputs:
+  cache-hit:
+    description: 'Whether dependencies were restored from cache'
+    value: ${{ steps.cache-deps.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: segec_workflows/package-lock.json
+
+    - name: Cache dependencies
+      id: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: segec_workflows/node_modules
+        key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('segec_workflows/package-lock.json') }}-${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          ${{ runner.os }}-node-${{ inputs.node-version }}-
+
+    - name: Install dependencies
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
+      working-directory: segec_workflows

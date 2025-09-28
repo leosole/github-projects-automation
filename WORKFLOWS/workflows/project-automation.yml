@@ -1,0 +1,42 @@
+name: Project Automation
+
+on:
+  create:
+    branches:
+      - '**'
+  issues:
+    types: [opened, closed]
+  pull_request:
+    types: [opened, closed, review_requested]
+    branches:
+      - main
+      - master
+      - staging
+      - develop
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  automation:
+    uses: TCU-TI/segec_workflows/.github/workflows/project-automation-master.yml@main
+    with:
+      event_name: ${{ github.event_name }}
+      event_action: ${{ github.event.action }}
+      event_data: ${{ toJSON(github.event) }}
+      project_id: "PVT_kwDOC0JyIc4A6lxY"
+      domain: "frontend"
+      # Optional: Override workflow configuration
+      # issue_branch_regex: "^(\d+)[-_]"        # Custom branch pattern
+      # field_name: "Status"                    # Custom field name
+      # doing: "Doing"                          # Custom "doing" status
+      # review: "Review"                        # Custom "review" status
+      # fixing: "Fixes"                         # Custom "fixing" status
+      # done: "Done"                            # Custom "done" status
+      # staging_label: 'staging'                # Custom staging label
+      # production_label: 'production'          # Custom production label
+    secrets: inherit

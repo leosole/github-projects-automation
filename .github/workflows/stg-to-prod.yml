@@ -1,0 +1,50 @@
+name: Move tasks from Staging to Production
+
+on:
+  workflow_call:
+    inputs:
+      staging_label:
+        description: 'The label name for staging (to be removed)'
+        required: false
+        type: string
+        default: 'staging'
+      production_label:
+        description: 'The label name for production (to be added)'
+        required: false
+        type: string
+        default: 'production'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+
+jobs:
+  move-staging-to-production:
+    if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master') && (github.event.pull_request.head.ref == 'staging' || github.event.pull_request.head.ref == 'develop')
+    runs-on: aks-runner
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+      
+      - name: Setup SEGEC Environment
+        uses: ./segec_workflows/.github/actions/setup-segec-environment
+        with:
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+
+      - name: Replace Staging label with Production on all issues
+        run: node segec_workflows/.github/scripts/stg-to-prod.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          STAGING_LABEL: ${{ inputs.staging_label }}
+          PRODUCTION_LABEL: ${{ inputs.production_label }}

@@ -1,0 +1,194 @@
+name: Add staging label and move task to Completed when closing PR
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'GitHub Project ID (optional, overrides config.json)'
+        required: false
+        type: string
+      staging_label:
+        description: 'The label name for staging'
+        required: false
+        type: string
+        default: 'staging'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  ISSUE_BRANCH_REGEX: '^(\d+)[-_]'
+  FIELD_NAME: 'Status'
+  OPTION_NAME: 'Done'
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+  PROJECT_ID: ${{ inputs.project_id }}
+
+jobs:
+  process-pr-closure:
+    runs-on: aks-runner
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: segec_workflows/node_modules
+          key: ${{ runner.os }}-node-20-${{ hashFiles('segec_workflows/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-20-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: segec_workflows
+
+      # Use the new shared config script
+      - name: Read config
+        id: config
+        run: node segec_workflows/.github/scripts/read-config.js
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+      
+      - name: Find task from branch
+        id: linked_issue
+        if: github.event.pull_request.merged == true
+        run: node segec_workflows/.github/scripts/find-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          REGEX: ${{ env.ISSUE_BRANCH_REGEX }}
+          TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+
+      - name: Add staging label to issue
+        if: github.event.pull_request.merged == true && steps.linked_issue.outputs.issue_number != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const issueNumber = parseInt('${{ steps.linked_issue.outputs.issue_number }}', 10);
+            if (issueNumber && !isNaN(issueNumber)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['${{ inputs.staging_label }}']
+              });
+              core.info(`Label "${{ inputs.staging_label }}" added to issue #${issueNumber}`);
+            } else {
+              core.warning('No issue found to add label.');
+            }
+
+      - name: Get project field IDs (Status and Completed)
+        id: get_ids
+        if: github.event.pull_request.merged == true && steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/find-fields.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          FIELD_NAME: ${{ env.FIELD_NAME }}
+          OPTION_NAME: ${{ env.OPTION_NAME }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+
+      - name: Move task to Completed
+        if: github.event.pull_request.merged == true && steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/move-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.linked_issue.outputs.issue_number }}
+          ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
+          FIELD_ID: ${{ steps.get_ids.outputs.fieldId }}
+          OPTION_ID: ${{ steps.get_ids.outputs.optionId }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          
+      - name: Create Pull Request from staging to main
+        uses: actions/github-script@v7
+        if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging'
+        env:
+          HUSKY: 0
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            
+            try {
+              const pr = await github.rest.pulls.create({
+                owner,
+                repo,
+                title: 'deploy: staging -> main',
+                head: 'staging',
+                base: 'main',
+                body: `## Deploy from staging to main
+                
+                This PR was automatically created to deploy changes from staging to main.
+                
+                🤖 *This PR was created automatically by GitHub Actions*`
+              });
+              
+              core.info(`PR created: ${pr.data.html_url}`);
+              core.setOutput('pr-number', pr.data.number);
+              core.setOutput('pr-url', pr.data.html_url);
+              
+            } catch (error) {
+              if (error.message.includes('No commits between')) {
+                core.info('No changes between staging and main - PR not needed');
+              } else if (error.message.includes('A pull request already exists')) {
+                core.info('PR from staging to main already exists');
+              } else {
+                throw error;
+              }
+            }
+          
+      - name: Delete branch after merge
+        if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main' && github.event.pull_request.head.ref != 'master' && github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'staging'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            try {
+              // First check if the branch still exists
+              await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`
+              });
+              
+              // If we get here, the branch exists, so delete it
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`
+              });
+              core.info(`Branch ${branch} deleted successfully.`);
+            } catch (error) {
+              if (error.status === 404 || error.status === 422) {
+                core.info(`Branch ${branch} not found or already deleted.`);
+              } else {
+                core.warning(`Error deleting branch ${branch}: ${error.message}`);
+                throw error;
+              }
+            }
+
+      - name: Remove PR from project
+        run: node segec_workflows/.github/scripts/remove-pr-from-project.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}

@@ -1,0 +1,116 @@
+name: Move task to In Progress when creating branch
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'GitHub Project ID (optional, overrides config.json)'
+        required: false
+        type: string
+      issue_branch_regex:
+        description: 'Regex pattern to extract issue numbers from branch names'
+        required: false
+        type: string
+      field_name:
+        description: 'Project field name to update'
+        required: false
+        type: string
+      option_name:
+        description: 'Status option to set'
+        required: false
+        type: string
+      start_date_field:
+        description: 'Start date field name'
+        required: false
+        type: string
+        default: 'Start'
+
+permissions:
+  contents: read
+  issues: read
+
+env:
+  ISSUE_BRANCH_REGEX: ${{ inputs.issue_branch_regex || '^(\d+)[-_]' }}
+  FIELD_NAME: ${{ inputs.field_name || 'Status' }}
+  OPTION_NAME: ${{ inputs.option_name || 'Doing' }}
+  START_DATE_FIELD: ${{ inputs.start_date_field || 'Start' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+  PROJECT_ID: ${{ inputs.project_id }}
+
+jobs:
+  move-issue:
+    runs-on: aks-runner
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: segec_workflows/node_modules
+          key: ${{ runner.os }}-node-20-${{ hashFiles('segec_workflows/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-20-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: segec_workflows
+
+      # Use the new shared config script
+      - name: Read config
+        id: config
+        run: node segec_workflows/.github/scripts/read-config.js
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+      
+      - name: Find task from branch
+        id: linked_issue
+        run: node segec_workflows/.github/scripts/find-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+          REGEX: ${{ env.ISSUE_BRANCH_REGEX }}
+          TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+
+      - name: Get project field IDs (Status and In Progress)
+        id: get_ids
+        if: steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/find-fields.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          FIELD_NAME: ${{ env.FIELD_NAME }}
+          OPTION_NAME: ${{ env.OPTION_NAME }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+
+      - name: Move task to In Progress
+        if: steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/move-issue.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.linked_issue.outputs.issue_number }}
+          ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
+          FIELD_ID: ${{ steps.get_ids.outputs.fieldId }}
+          OPTION_ID: ${{ steps.get_ids.outputs.optionId }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          
+      - name: Set current date in Start field
+        if: steps.linked_issue.outputs.issue_number != ''
+        run: node segec_workflows/.github/scripts/set-date.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          FIELD_NAME: ${{ env.START_DATE_FIELD }}

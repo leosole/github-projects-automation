@@ -1,0 +1,56 @@
+name: Add End field when closing issue
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'GitHub Project ID (optional, overrides config.json)'
+        required: false
+        type: string
+      end_date_field:
+        description: 'End date field name'
+        required: false
+        type: string
+        default: 'End'
+
+permissions:
+  issues: write
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_PROJECT_TOKEN }}
+  PROJECT_ID: ${{ inputs.project_id }}
+  END_DATE_FIELD: ${{ inputs.end_date_field || 'End' }}
+
+jobs:
+  issue-closed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout segec_workflows repository
+        uses: actions/checkout@v4
+        with:
+          repository: TCU-TI/segec_workflows
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: segec_workflows
+
+      - name: Setup SEGEC Environment
+        uses: ./segec_workflows/.github/actions/setup-segec-environment
+        with:
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+
+      - name: Read config
+        id: config
+        run: node segec_workflows/.github/scripts/read-config.js
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+
+      - name: Update End field with current date
+        run: node segec_workflows/.github/scripts/set-date.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+          PROJECT_ID: ${{ steps.config.outputs.project_id }}
+          FIELD_NAME: ${{ env.END_DATE_FIELD }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}

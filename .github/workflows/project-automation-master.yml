@@ -1,0 +1,222 @@
+name: Project Automation Master
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        description: 'Original event name'
+        required: true
+        type: string
+      event_action:
+        description: 'Original event action'
+        required: false
+        type: string
+      event_data:
+        description: 'Additional event data as JSON'
+        required: false
+        type: string
+      project_id:
+        description: 'GitHub Project ID'
+        required: true
+        type: string
+      domain:
+        description: 'Domain value, for multiple domain projects'
+        required: false
+        type: string
+      issue_branch_regex:
+        description: 'Regex pattern to extract issue numbers from branch names'
+        required: false
+        type: string
+        default: '^(\d+)[-_]'
+      field_name:
+        description: 'Project field name to update'
+        required: false
+        type: string
+        default: 'Status'
+      doing:
+        description: 'Status option when branch is created'
+        required: false
+        type: string
+        default: 'Doing'
+      review:
+        description: 'Status option when PR is opened'
+        required: false
+        type: string
+        default: 'Review'
+      fixing:
+        description: 'Status option when changes are requested'
+        required: false
+        type: string
+        default: 'Fixes'
+      done:
+        description: 'Status option when PR is merged to main'
+        required: false
+        type: string
+        default: 'Done'
+      staging_label:
+        description: 'Label name for staging issues'
+        required: false
+        type: string
+        default: 'staging'
+      production_label:
+        description: 'Label name for production issues'
+        required: false
+        type: string
+        default: 'prodction'
+      date_field:
+        description: 'Date field name for initial issue creation'
+        required: false
+        type: string
+        default: 'Date'
+      start_date_field:
+        description: 'Start date field name for when work begins'
+        required: false
+        type: string
+        default: 'Start'
+      end_date_field:
+        description: 'End date field name for when work completes'
+        required: false
+        type: string
+        default: 'End'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+
+jobs:
+  # Log all inputs for debugging
+  log-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log workflow inputs
+        run: |
+          echo "=== Project Automation Workflow Inputs ==="
+          echo "Event Name: ${{ inputs.event_name }}"
+          echo "Event Action: ${{ inputs.event_action }}"
+          echo "Project ID: ${{ inputs.project_id }}"
+          echo "Domain: ${{ inputs.domain }}"
+          echo "Issue Branch Regex: ${{ inputs.issue_branch_regex }}"
+          echo "Field Name: ${{ inputs.field_name }}"
+          echo "Doing Status: ${{ inputs.doing }}"
+          echo "Review Status: ${{ inputs.review }}"
+          echo "Fixing Status: ${{ inputs.fixing }}"
+          echo "Done Status: ${{ inputs.done }}"
+          echo "Staging Label: ${{ inputs.staging_label }}"
+          echo "Production Label: ${{ inputs.production_label }}"
+          echo "Date Field: ${{ inputs.date_field }}"
+          echo "Start Date Field: ${{ inputs.start_date_field }}"
+          echo "End Date Field: ${{ inputs.end_date_field }}"
+          echo "=== Event Data ==="
+          echo '${{ inputs.event_data }}'
+          echo "=== End of Inputs ==="
+
+  # Branch created - move issue to "Doing"
+  branch-created:
+    if: inputs.event_name == 'create'
+    uses: TCU-TI/segec_workflows/.github/workflows/branch-created.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      issue_branch_regex: ${{ inputs.issue_branch_regex }}
+      field_name: ${{ inputs.field_name }}
+      option_name: ${{ inputs.doing }}
+      start_date_field: ${{ inputs.start_date_field }}
+    secrets: inherit
+
+  # Issue opened - add to project and set domain
+  issue-opened:
+    if: inputs.event_name == 'issues' && inputs.event_action == 'opened'
+    uses: TCU-TI/segec_workflows/.github/workflows/issue-opened.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      domain: ${{ inputs.domain }}
+      date_field: ${{ inputs.date_field }}
+    secrets: inherit
+
+  # Issue closed - add end date
+  issue-closed:
+    if: inputs.event_name == 'issues' && inputs.event_action == 'closed'
+    uses: TCU-TI/segec_workflows/.github/workflows/issue-closed.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      end_date_field: ${{ inputs.end_date_field }}
+    secrets: inherit
+
+  # PR opened - add to project and assign
+  pr-opened:
+    if: inputs.event_name == 'pull_request' && inputs.event_action == 'opened'
+    uses: TCU-TI/segec_workflows/.github/workflows/pr-add.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      domain: ${{ inputs.domain }}
+    secrets: inherit
+
+  # PR opened - move issue to "Review"
+  pr-move-to-review:
+    if: inputs.event_name == 'pull_request' && inputs.event_action == 'opened'
+    uses: TCU-TI/segec_workflows/.github/workflows/pr-opened.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      issue_branch_regex: ${{ inputs.issue_branch_regex }}
+      field_name: ${{ inputs.field_name }}
+      option_name: ${{ inputs.review }}
+    secrets: inherit
+
+  # PR review changes requested - move to "Fixes"
+  pr-changes-requested:
+    if: |
+      inputs.event_name == 'pull_request_review' && 
+      fromJSON(inputs.event_data).review.state == 'changes_requested'
+    uses: TCU-TI/segec_workflows/.github/workflows/pr-review.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      issue_branch_regex: ${{ inputs.issue_branch_regex }}
+      field_name: ${{ inputs.field_name }}
+      option_name: ${{ inputs.fixing }}
+    secrets: inherit
+
+  # PR closed to main - move to completed and cleanup
+  pr-closed-main:
+    if: |
+      inputs.event_name == 'pull_request' && 
+      inputs.event_action == 'closed' && 
+      fromJSON(inputs.event_data).pull_request.merged == true &&
+      (fromJSON(inputs.event_data).pull_request.base.ref == 'main' || fromJSON(inputs.event_data).pull_request.base.ref == 'master')
+    uses: TCU-TI/segec_workflows/.github/workflows/pr-main-closed.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      issue_branch_regex: ${{ inputs.issue_branch_regex }}
+      field_name: ${{ inputs.field_name }}
+      option_name: ${{ inputs.done }}
+      end_date_field: ${{ inputs.end_date_field }}
+    secrets: inherit
+
+  # PR closed to staging/develop - add labels and create deployment PR
+  pr-closed-staging:
+    if: |
+      inputs.event_name == 'pull_request' && 
+      inputs.event_action == 'closed' && 
+      fromJSON(inputs.event_data).pull_request.merged == true &&
+      (fromJSON(inputs.event_data).pull_request.base.ref == 'staging' || fromJSON(inputs.event_data).pull_request.base.ref == 'develop')
+    uses: TCU-TI/segec_workflows/.github/workflows/pr-stg-closed.yml@main
+    with:
+      project_id: ${{ inputs.project_id }}
+      staging_label: ${{ inputs.staging_label }}
+    secrets: inherit
+
+  # Move staging to production - when staging/develop is merged to main/master
+  stg-to-prod:
+    if: |
+      inputs.event_name == 'pull_request' && 
+      inputs.event_action == 'closed' && 
+      fromJSON(inputs.event_data).pull_request.merged == true &&
+      (fromJSON(inputs.event_data).pull_request.base.ref == 'main' || fromJSON(inputs.event_data).pull_request.base.ref == 'master') &&
+      (fromJSON(inputs.event_data).pull_request.head.ref == 'staging' || fromJSON(inputs.event_data).pull_request.head.ref == 'develop')
+    uses: TCU-TI/segec_workflows/.github/workflows/stg-to-prod.yml@main
+    with:
+      staging_label: ${{ inputs.staging_label }}
+      production_label: ${{ inputs.production_label }}
+    secrets: inherit
