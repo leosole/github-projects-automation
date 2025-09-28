@@ -23,13 +23,13 @@ permissions:
 
 jobs:
   automation:
-    uses: TCU-TI/segec_workflows/.github/workflows/project-automation-master.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/project-automation-main.yml@main
     with:
       event_name: ${{ github.event_name }}
       event_action: ${{ github.event.action }}
       event_data: ${{ toJSON(github.event) }}
-      project_id: "PVT_kwDOC0JyIc4A6lxY"
-      domain: "frontend"
+      project_id: "your-project-id"
+      domain: "your-domain"
       # Optional: Override workflow configuration
       # issue_branch_regex: "^(\d+)[-_]"        # Custom branch pattern
       # field_name: "Status"                    # Custom field name
