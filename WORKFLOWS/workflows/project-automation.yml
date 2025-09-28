@@ -39,4 +39,7 @@ jobs:
       # done: "Done"                            # Custom "done" status
       # staging_label: 'staging'                # Custom staging label
       # production_label: 'production'          # Custom production label
+      # end_date_field: 'end'                   # Custom end date field
+      # start_date_field: 'start'               # Custom start date field
+      # date_field: 'date'                      # Custom issue creation date field
     secrets: inherit
