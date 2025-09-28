@@ -25,7 +25,7 @@ env:
 jobs:
   move-staging-to-production:
     if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master') && (github.event.pull_request.head.ref == 'staging' || github.event.pull_request.head.ref == 'develop')
-    runs-on: aks-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout caller repository
         uses: actions/checkout@v4

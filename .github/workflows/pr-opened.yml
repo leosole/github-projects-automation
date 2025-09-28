@@ -35,7 +35,7 @@ env:
 jobs:
   move-issue:
     if: github.head_ref != 'staging'
-    runs-on: aks-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout caller repository
         uses: actions/checkout@v4

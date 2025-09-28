@@ -34,7 +34,7 @@ env:
 
 jobs:
   move-issue:
-    runs-on: aks-runner
+    runs-on: ubuntu-latest
     if: github.event.review.state == 'changes_requested'
     steps:
       - name: Checkout caller repository

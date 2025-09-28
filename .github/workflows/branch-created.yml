@@ -39,7 +39,7 @@ env:
 
 jobs:
   move-issue:
-    runs-on: aks-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout caller repository
         uses: actions/checkout@v4
