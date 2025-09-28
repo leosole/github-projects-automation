@@ -29,26 +29,26 @@ jobs:
       - name: Checkout caller repository
         uses: actions/checkout@v4
 
-      - name: Checkout segec_workflows repository
+      - name: Checkout automation repository
         uses: actions/checkout@v4
         with:
-          repository: TCU-TI/segec_workflows
+          repository: leosole/github-projects-automation
           token: ${{ secrets.GH_PROJECT_TOKEN }}
-          path: segec_workflows
+          path: automation
 
       - name: Setup SEGEC Environment
-        uses: ./segec_workflows/.github/actions/setup-segec-environment
+        uses: ./automation/.github/actions/setup-segec-environment
         with:
           token: ${{ secrets.GH_PROJECT_TOKEN }}
 
       - name: Read config
         id: config
-        run: node segec_workflows/.github/scripts/read-config.js
+        run: node automation/.github/scripts/read-config.js
         env:
           PROJECT_ID: ${{ env.PROJECT_ID }}
 
       - name: Update End field with current date
-        run: node segec_workflows/.github/scripts/set-date.js
+        run: node automation/.github/scripts/set-date.js
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           PROJECT_ID: ${{ steps.config.outputs.project_id }}

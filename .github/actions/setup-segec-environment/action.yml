@@ -27,14 +27,14 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: 'npm'
-        cache-dependency-path: segec_workflows/package-lock.json
+        cache-dependency-path: automation/package-lock.json
 
     - name: Cache dependencies
       id: cache-deps
       uses: actions/cache@v4
       with:
-        path: segec_workflows/node_modules
-        key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('segec_workflows/package-lock.json') }}-${{ inputs.cache-key-suffix }}
+        path: automation/node_modules
+        key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('automation/package-lock.json') }}-${{ inputs.cache-key-suffix }}
         restore-keys: |
           ${{ runner.os }}-node-${{ inputs.node-version }}-
 
@@ -42,4 +42,4 @@ runs:
       if: steps.cache-deps.outputs.cache-hit != 'true'
       shell: bash
       run: npm ci
-      working-directory: segec_workflows
+      working-directory: automation

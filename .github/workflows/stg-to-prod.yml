@@ -30,20 +30,20 @@ jobs:
       - name: Checkout caller repository
         uses: actions/checkout@v4
 
-      - name: Checkout segec_workflows repository
+      - name: Checkout automation repository
         uses: actions/checkout@v4
         with:
-          repository: TCU-TI/segec_workflows
+          repository: leosole/github-projects-automation
           token: ${{ secrets.GH_PROJECT_TOKEN }}
-          path: segec_workflows
+          path: automation
       
       - name: Setup SEGEC Environment
-        uses: ./segec_workflows/.github/actions/setup-segec-environment
+        uses: ./automation/.github/actions/setup-segec-environment
         with:
           token: ${{ secrets.GH_PROJECT_TOKEN }}
 
       - name: Replace Staging label with Production on all issues
-        run: node segec_workflows/.github/scripts/stg-to-prod.js
+        run: node automation/.github/scripts/stg-to-prod.js
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           STAGING_LABEL: ${{ inputs.staging_label }}

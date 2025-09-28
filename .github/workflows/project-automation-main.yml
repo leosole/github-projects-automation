@@ -117,7 +117,7 @@ jobs:
   # Branch created - move issue to "Doing"
   branch-created:
     if: inputs.event_name == 'create'
-    uses: TCU-TI/segec_workflows/.github/workflows/branch-created.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/branch-created.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       issue_branch_regex: ${{ inputs.issue_branch_regex }}
@@ -129,7 +129,7 @@ jobs:
   # Issue opened - add to project and set domain
   issue-opened:
     if: inputs.event_name == 'issues' && inputs.event_action == 'opened'
-    uses: TCU-TI/segec_workflows/.github/workflows/issue-opened.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/issue-opened.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       domain: ${{ inputs.domain }}
@@ -139,7 +139,7 @@ jobs:
   # Issue closed - add end date
   issue-closed:
     if: inputs.event_name == 'issues' && inputs.event_action == 'closed'
-    uses: TCU-TI/segec_workflows/.github/workflows/issue-closed.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/issue-closed.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       end_date_field: ${{ inputs.end_date_field }}
@@ -148,7 +148,7 @@ jobs:
   # PR opened - add to project and assign
   pr-opened:
     if: inputs.event_name == 'pull_request' && inputs.event_action == 'opened'
-    uses: TCU-TI/segec_workflows/.github/workflows/pr-add.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/pr-add.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       domain: ${{ inputs.domain }}
@@ -157,7 +157,7 @@ jobs:
   # PR opened - move issue to "Review"
   pr-move-to-review:
     if: inputs.event_name == 'pull_request' && inputs.event_action == 'opened'
-    uses: TCU-TI/segec_workflows/.github/workflows/pr-opened.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/pr-opened.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       issue_branch_regex: ${{ inputs.issue_branch_regex }}
@@ -170,7 +170,7 @@ jobs:
     if: |
       inputs.event_name == 'pull_request_review' && 
       fromJSON(inputs.event_data).review.state == 'changes_requested'
-    uses: TCU-TI/segec_workflows/.github/workflows/pr-review.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/pr-review.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       issue_branch_regex: ${{ inputs.issue_branch_regex }}
@@ -185,7 +185,7 @@ jobs:
       inputs.event_action == 'closed' && 
       fromJSON(inputs.event_data).pull_request.merged == true &&
       (fromJSON(inputs.event_data).pull_request.base.ref == 'main' || fromJSON(inputs.event_data).pull_request.base.ref == 'master')
-    uses: TCU-TI/segec_workflows/.github/workflows/pr-main-closed.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/pr-main-closed.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       issue_branch_regex: ${{ inputs.issue_branch_regex }}
@@ -201,7 +201,7 @@ jobs:
       inputs.event_action == 'closed' && 
       fromJSON(inputs.event_data).pull_request.merged == true &&
       (fromJSON(inputs.event_data).pull_request.base.ref == 'staging' || fromJSON(inputs.event_data).pull_request.base.ref == 'develop')
-    uses: TCU-TI/segec_workflows/.github/workflows/pr-stg-closed.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/pr-stg-closed.yml@main
     with:
       project_id: ${{ inputs.project_id }}
       staging_label: ${{ inputs.staging_label }}
@@ -215,7 +215,7 @@ jobs:
       fromJSON(inputs.event_data).pull_request.merged == true &&
       (fromJSON(inputs.event_data).pull_request.base.ref == 'main' || fromJSON(inputs.event_data).pull_request.base.ref == 'master') &&
       (fromJSON(inputs.event_data).pull_request.head.ref == 'staging' || fromJSON(inputs.event_data).pull_request.head.ref == 'develop')
-    uses: TCU-TI/segec_workflows/.github/workflows/stg-to-prod.yml@main
+    uses: leosole/github-projects-automation/.github/workflows/stg-to-prod.yml@main
     with:
       staging_label: ${{ inputs.staging_label }}
       production_label: ${{ inputs.production_label }}

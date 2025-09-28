@@ -29,12 +29,12 @@ jobs:
       - name: Checkout caller repository
         uses: actions/checkout@v4
 
-      - name: Checkout segec_workflows repository
+      - name: Checkout automation repository
         uses: actions/checkout@v4
         with:
-          repository: TCU-TI/segec_workflows
+          repository: leosole/github-projects-automation
           token: ${{ secrets.GH_PROJECT_TOKEN }}
-          path: segec_workflows
+          path: automation
 
       - uses: actions/setup-node@v4
         with:
@@ -44,34 +44,34 @@ jobs:
         id: cache-deps
         uses: actions/cache@v4
         with:
-          path: segec_workflows/node_modules
-          key: ${{ runner.os }}-node-20-${{ hashFiles('segec_workflows/package-lock.json') }}
+          path: automation/node_modules
+          key: ${{ runner.os }}-node-20-${{ hashFiles('automation/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-20-
 
       - name: Install dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: npm ci
-        working-directory: segec_workflows
+        working-directory: automation
 
       # Use the new shared config script
       - name: Read config
         id: config
-        run: node segec_workflows/.github/scripts/read-config.js
+        run: node automation/.github/scripts/read-config.js
         env:
           PROJECT_ID: ${{ inputs.project_id }}
           DOMAIN: ${{ inputs.domain }}
 
       - name: Add PR to project
         id: add_to_project
-        run: node segec_workflows/.github/scripts/add-to-project.js
+        run: node automation/.github/scripts/add-to-project.js
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           CONTENT_ID: ${{ github.event.pull_request.node_id }}
           PROJECT_ID: ${{ steps.config.outputs.project_id }}
 
       - name: Update Domain field in project
-        run: node segec_workflows/.github/scripts/add-domain.js
+        run: node automation/.github/scripts/add-domain.js
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           ITEM_ID: ${{ steps.add_to_project.outputs.itemId }}
