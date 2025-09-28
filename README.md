@@ -28,16 +28,6 @@ A comprehensive collection of GitHub Actions workflows and scripts for automatin
 | `issue-closed.yml` | Issue closed | updates issue end date |
 | `stg-to-prod.yml` | Manual/scheduled | Promotes items from staging to production |
 
-## Setup
-
-### Required Permissions
-
-Your GitHub token needs the following permissions:
-- `contents: read`
-- `issues: write`
-- `pull-requests: write`
-- `projects: write`
-
 ### Installation
 
 1. **Copy workflows**: Copy the `WORKFLOWS/workflows/project-automation.yml` to your repository's `.github/workflows/` directory
