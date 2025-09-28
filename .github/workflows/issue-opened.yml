@@ -59,7 +59,7 @@ jobs:
         run: npm ci
         working-directory: automation
 
-      # Use the new shared config script
+      
       - name: Read config
         id: config
         run: node automation/.github/scripts/read-config.js
