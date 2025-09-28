@@ -44,8 +44,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: leosole/github-projects-automation
-          token: ${{ secreautomationts.GH_PROJECT_TOKEN }}
-          path: 
+          token: ${{ secrets.GH_PROJECT_TOKEN }}
+          path: automation
 
       - uses: actions/setup-node@v4
         with:

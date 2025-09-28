@@ -62,7 +62,7 @@ on:
         description: 'Label name for production issues'
         required: false
         type: string
-        default: 'prodction'
+        default: 'production'
       date_field:
         description: 'Date field name for initial issue creation'
         required: false
