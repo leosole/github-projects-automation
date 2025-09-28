@@ -36,8 +36,8 @@ jobs:
           token: ${{ secrets.GH_PROJECT_TOKEN }}
           path: automation
 
-      - name: Setup SEGEC Environment
-        uses: ./automation/.github/actions/setup-segec-environment
+      - name: Setup Automation Environment
+        uses: ./automation/.github/actions/setup-Automation-environment
         with:
           token: ${{ secrets.GH_PROJECT_TOKEN }}
 

@@ -1,5 +1,5 @@
-name: 'Setup SEGEC Environment'
-description: 'Checkout repositories, setup Node.js, and install dependencies for SEGEC workflows'
+name: 'Setup Automation Environment'
+description: 'Checkout repositories, setup Node.js, and install dependencies for Automation workflows'
 
 inputs:
   token:
