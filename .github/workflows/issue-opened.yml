@@ -77,6 +77,7 @@ jobs:
 
       - name: Update Domain field in project
         run: node automation/.github/scripts/add-domain.js
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           ITEM_ID: ${{ steps.add_to_project.outputs.itemId }}

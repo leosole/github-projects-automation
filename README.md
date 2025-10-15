@@ -22,11 +22,11 @@ A comprehensive collection of GitHub Actions workflows and scripts for automatin
 | `branch-created.yml` | Branch created | Moves linked issue to "Doing" status |
 | `pr-opened.yml` | PR opened | Moves linked issue to "Review" status |
 | `pr-review.yml` | PR review requested | Updates issue status based on review state |
-| `pr-add.yml` | PR created | Adds pull requests to projects |
+| `pr-add.yml` | PR created | Adds pull request to project |
 | `pr-main-closed.yml` | PR merged to main | Moves issue to "Done" status and adds label |
-| `pr-stg-closed.yml` | PR merged to staging | HMoves issue to "Done" status and adds label |
+| `pr-stg-closed.yml` | PR merged to staging | Moves issue to "Done" status and adds label |
 | `issue-closed.yml` | Issue closed | updates issue end date |
-| `stg-to-prod.yml` | Manual/scheduled | Promotes items from staging to production |
+| `stg-to-prod.yml` | PR merged stg > prod | Promotes items from staging to production |
 
 ### Installation
 

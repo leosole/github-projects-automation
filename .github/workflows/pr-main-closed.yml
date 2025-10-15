@@ -75,7 +75,6 @@ jobs:
         run: npm ci
         working-directory: automation
 
-      
       - name: Read config
         id: config
         run: node automation/.github/scripts/read-config.js
@@ -135,6 +134,7 @@ jobs:
       - name: Set current date in End field
         if: github.event.pull_request.merged == true && github.head_ref != 'staging' && github.head_ref != 'develop' && steps.linked_issue.outputs.issue_number != ''
         run: node automation/.github/scripts/set-date.js
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
           ISSUE_NODE_ID: ${{ steps.linked_issue.outputs.issue_node_id }}
@@ -142,6 +142,7 @@ jobs:
           FIELD_NAME: ${{ env.END_DATE_FIELD }}
 
       - name: Delete branch after merge
+        continue-on-error: true
         if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main' && github.event.pull_request.head.ref != 'master' && github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'staging'
         uses: actions/github-script@v7
         with:
