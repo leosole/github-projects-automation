@@ -38,7 +38,7 @@ jobs:
           path: automation
       
       - name: Setup Automation Environment
-        uses: ./automation/.github/actions/setup-Automation-environment
+        uses: ./automation/.github/actions/setup-automation-environment
         with:
           token: ${{ secrets.GH_PROJECT_TOKEN }}
 
